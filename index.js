@@ -59,6 +59,8 @@ function removeFromClipboardList(index) {
 // Update the display of saved clipboard items
 function updateClipboardList() {
   const $listContainer = $("#clipboard_saved_list");
+  if ($listContainer.length === 0) return; // Exit if element doesn't exist yet
+  
   $listContainer.empty();
   
   const settings = extension_settings[extensionName];
@@ -88,12 +90,12 @@ function updateClipboardList() {
   });
   
   // Add event listeners for the buttons
-  $(".clipboard-copy-btn").on("click", function() {
+  $(".clipboard-copy-btn").off("click").on("click", function() {
     const index = $(this).data("index");
     copyToClipboard(settings.savedClipboards[index]);
   });
   
-  $(".clipboard-delete-btn").on("click", function() {
+  $(".clipboard-delete-btn").off("click").on("click", function() {
     const index = $(this).data("index");
     removeFromClipboardList(index);
   });
@@ -142,8 +144,53 @@ async function onQuickCopyButtonClick() {
   }
 }
 
+// Function to create the popup manually instead of loading from HTML file
+function createPopup() {
+  // Check if popup already exists
+  if ($("#clipboard_manager_popup").length > 0) {
+    return;
+  }
+  
+  // Create popup HTML structure
+  const popupHtml = `
+    <div id="clipboard_manager_popup" class="clipboard-popup">
+      <div class="clipboard-popup-content">
+        <div class="clipboard-popup-header">
+          <h3>剪贴板管理器</h3>
+          <button id="clipboard_popup_close" class="clipboard-popup-close">×</button>
+        </div>
+        <div class="clipboard-popup-body">
+          <div class="clipboard-actions">
+            <button id="clipboard_popup_save" class="menu_button">保存当前剪贴板内容</button>
+          </div>
+          <div class="clipboard-saved-items">
+            <h4>保存的内容</h4>
+            <div id="clipboard_saved_list" class="clipboard-list">
+              <!-- Saved clipboard items will be inserted here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Append to body
+  $("body").append(popupHtml);
+  
+  // Add event listeners
+  $("#clipboard_popup_close").on("click", closeClipboardManagerPopup);
+  $("#clipboard_popup_save").on("click", onSaveClipboardInPopupClick);
+}
+
 // Handle opening the clipboard manager popup
 function openClipboardManagerPopup() {
+  // Make sure popup exists before trying to show it
+  createPopup();
+  
+  // Update clipboard list before showing popup
+  updateClipboardList();
+  
+  // Show popup
   $("#clipboard_manager_popup").addClass("show");
 }
 
@@ -153,9 +200,7 @@ function closeClipboardManagerPopup() {
 }
 
 // Handle the open popup button click
-async function onOpenPopupButtonClick() {
-  // Update clipboard list before showing popup
-  updateClipboardList();
+function onOpenPopupButtonClick() {
   openClipboardManagerPopup();
 }
 
@@ -170,19 +215,37 @@ async function onSaveClipboardInPopupClick() {
 
 // Initialize the extension
 jQuery(async () => {
-  // Load HTML components
-  const settingsHtml = await $.get(`${extensionFolderPath}/clipboard_manager.html`);
+  // Load settings UI HTML directly
+  const settingsHtml = `
+    <div class="clipboard-manager-settings">
+      <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+          <b>剪贴板管理器</b>
+          <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+          <div class="clipboard-manager_block flex-container">
+            <input id="clipboard_quick_save" class="menu_button" type="button" value="保存剪贴板内容" />
+            <input id="clipboard_open_manager" class="menu_button" type="button" value="打开剪贴板管理器" />
+          </div>
+          <div class="clipboard-manager_info">
+            <p>使用此插件可以快速保存和检索剪贴板内容。</p>
+          </div>
+          <hr class="sysHR" />
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Append settings HTML
   $("#extensions_settings2").append(settingsHtml);
   
-  // Create a floating popup and append to body
-  const popupHtml = await $.get(`${extensionFolderPath}/clipboard_popup.html`);
-  $("body").append(popupHtml);
-  
-  // Set up event listeners
+  // Set up event listeners for settings buttons
   $("#clipboard_quick_save").on("click", onQuickCopyButtonClick);
   $("#clipboard_open_manager").on("click", onOpenPopupButtonClick);
-  $("#clipboard_popup_close").on("click", closeClipboardManagerPopup);
-  $("#clipboard_popup_save").on("click", onSaveClipboardInPopupClick);
+  
+  // Create popup on initialization
+  createPopup();
   
   // Close popup when clicking outside
   $(document).on("click", function(event) {
