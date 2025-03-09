@@ -1,10 +1,19 @@
 /* Clipboard Manager Extension Styles */
 
 /* Settings Panel */
+.clipboard-manager-settings {
+    margin-bottom: 20px;
+}
+
 .clipboard-manager_block {
     margin: 10px 0;
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.clipboard-manager_block .menu_button {
+    min-width: 150px;
 }
 
 .clipboard-manager_info {
@@ -22,13 +31,16 @@
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.7);
-    z-index: 9999;
+    z-index: 10000 !important; /* Higher than any other element */
     justify-content: center;
     align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
 .clipboard-popup.show {
     display: flex !important; /* Force display when show class is applied */
+    opacity: 1;
 }
 
 .clipboard-popup-content {
@@ -41,6 +53,7 @@
     max-height: 80vh;
     overflow-y: auto;
     color: var(--SmartThemeTextColor, #dcddde);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
 }
 
 .clipboard-popup-header {
@@ -54,6 +67,7 @@
 
 .clipboard-popup-header h3 {
     margin: 0;
+    font-size: 1.3em;
 }
 
 .clipboard-popup-close {
@@ -62,15 +76,27 @@
     font-size: 24px;
     cursor: pointer;
     color: var(--SmartThemeTextColor, #dcddde);
+    padding: 0;
+    line-height: 1;
+}
+
+.clipboard-popup-close:hover {
+    color: #ff5555;
 }
 
 .clipboard-actions {
     margin-bottom: 20px;
 }
 
+.clipboard-actions .menu_button {
+    width: 100%;
+    padding: 10px;
+}
+
 .clipboard-saved-items h4 {
     margin-top: 0;
     margin-bottom: 10px;
+    font-size: 1.1em;
 }
 
 /* Clipboard List Styles */
@@ -80,6 +106,7 @@
     gap: 10px;
     max-height: 50vh;
     overflow-y: auto;
+    padding-right: 5px;
 }
 
 .clipboard-item {
@@ -103,15 +130,45 @@
 .clipboard-item-actions {
     display: flex;
     gap: 5px;
+    flex-shrink: 0;
 }
 
 .clipboard-copy-btn, .clipboard-delete-btn {
     padding: 5px 10px;
     font-size: 0.9em;
+    background-color: var(--SmartThemeButtonColor, #4e5d94);
+}
+
+.clipboard-copy-btn:hover {
+    background-color: #4a86e8;
+}
+
+.clipboard-delete-btn:hover {
+    background-color: #e84a4a;
 }
 
 .clipboard-empty-message {
     text-align: center;
     padding: 20px;
     color: #888;
+    font-style: italic;
+}
+
+/* Scrollbar styling for the list */
+.clipboard-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.clipboard-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.clipboard-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.clipboard-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
