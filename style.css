@@ -1,150 +1,175 @@
-/* Clipboard Manager Extension Styles */
+/* 剪貼板管理器樣式 */
 
-/* Settings Panel */
-.clipboard-manager_block {
-    margin: 10px 0;
-    display: flex;
-    gap: 10px;
+/* 通用彈窗樣式 */
+.clipboard-modal {
+  display: none;
+  position: fixed;
+  z-index: 1001;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.6);
 }
 
-.clipboard-manager_info {
-    font-size: 0.9em;
-    margin: 10px 0;
-    color: #ccc;
+.clipboard-modal-content {
+  position: relative;
+  background-color: var(--SmartThemeBodyColor);
+  color: var(--SmartThemeTextColor);
+  margin: 10% auto;
+  padding: 0;
+  border: 1px solid var(--SmartThemeBorderColor);
+  width: 80%;
+  max-width: 700px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
 }
 
-/* Popup Styles */
-.clipboard-popup {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    z-index: 9999;
-    justify-content: center;
-    align-items: center;
+.clipboard-manager-content {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.clipboard-popup.show {
-    display: flex !important; /* Force display when show class is applied */
+.clipboard-modal-header {
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--SmartThemeBorderColor);
 }
 
-.clipboard-popup-content {
-    width: 90%;
-    max-width: 600px;
-    background-color: #36393f;
-    border: 1px solid #202225;
-    border-radius: 10px;
-    padding: 20px;
-    max-height: 80vh;
-    overflow-y: auto;
-    color: #dcddde;
+.clipboard-modal-title {
+  font-size: 1.2em;
+  font-weight: bold;
 }
 
-.clipboard-popup-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    border-bottom: 1px solid #202225;
-    padding-bottom: 10px;
+.clipboard-modal-close {
+  color: var(--SmartThemeTextColor);
+  float: right;
+  font-size: 1.5em;
+  font-weight: bold;
+  cursor: pointer;
 }
 
-.clipboard-popup-header h3 {
-    margin: 0;
+.clipboard-modal-close:hover {
+  color: var(--accent-color);
 }
 
-.clipboard-popup-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #dcddde;
+.clipboard-modal-body {
+  padding: 15px;
+  overflow: auto;
+  flex: 1;
 }
 
+.clipboard-modal-footer {
+  padding: 10px 15px;
+  border-top: 1px solid var(--SmartThemeBorderColor);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.clipboard-modal-button {
+  background-color: var(--accent-color);
+  color: var(--SmartThemeTextColor);
+  border: none;
+  padding: 6px 12px;
+  margin-left: 5px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.clipboard-modal-button:hover {
+  filter: brightness(1.1);
+}
+
+.clipboard-danger-button {
+  background-color: #e74c3c;
+}
+
+/* 剪貼板列表樣式 */
 .clipboard-actions {
-    margin-bottom: 20px;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
 }
 
-.clipboard-saved-items h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
+.clipboard-list-container {
+  margin-top: 15px;
 }
 
-/* Clipboard List Styles */
 .clipboard-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 50vh;
-    overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 3px;
 }
 
 .clipboard-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border-radius: 5px;
-    border: 1px solid #202225;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--SmartThemeBorderColor);
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.clipboard-item-text {
-    flex-grow: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding-right: 10px;
+.clipboard-item:last-child {
+  border-bottom: none;
+}
+
+.clipboard-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.clipboard-item-empty {
+  padding: 15px;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+}
+
+.clipboard-item-content {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 10px;
 }
 
 .clipboard-item-actions {
-    display: flex;
-    gap: 5px;
-    flex-shrink: 0;
+  display: flex;
+  gap: 5px;
 }
 
-.clipboard-copy-btn, .clipboard-delete-btn {
-    padding: 5px 10px;
-    font-size: 0.9em;
+.clipboard-action-button {
+  background: none;
+  border: none;
+  color: var(--SmartThemeTextColor);
+  cursor: pointer;
+  padding: 3px 6px;
+  font-size: 0.9em;
+  opacity: 0.7;
+  transition: opacity 0.2s;
 }
 
-.clipboard-empty-message {
-    text-align: center;
-    padding: 20px;
-    color: #888;
+.clipboard-action-button:hover {
+  opacity: 1;
 }
 
-/* Custom Toast */
-.clipboard-toast {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    padding: 10px 20px;
-    border-radius: 5px;
-    color: white;
-    font-size: 14px;
-    opacity: 0;
-    transition: transform 0.3s, opacity 0.3s;
-    z-index: 10000;
-}
-
-.clipboard-toast.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-}
-
-.clipboard-toast-success {
-    background-color: #43b581;
-}
-
-.clipboard-toast-error {
-    background-color: #f04747;
-}
-
-.clipboard-toast-info {
-    background-color: #7289da;
+/* 完整內容預覽 */
+#clipboard_full_content {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 10px;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
 }
