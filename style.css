@@ -4,7 +4,7 @@
 .clipboard-modal {
   display: none;
   position: fixed;
-  z-index: 10001; /* 提高z-index值，確保置頂 */
+  z-index: 1000001; /* 提高z-index值，確保置頂 */
   left: 0;
   top: 0;
   width: 100%;
