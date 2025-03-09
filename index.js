@@ -1,5 +1,5 @@
 // Clipboard Manager Extension for SillyTavern
-import { extension_settings, getContext } from "../../../extensions.js";
+import { extension_settings, getContext, loadExtensionSettings } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 
 // Extension configuration
@@ -9,18 +9,24 @@ const defaultSettings = {
   maxItems: 10          // Maximum number of items to store
 };
 
+// DOM Elements (will be initialized when DOM is ready)
+let quickSaveButton;
+let openManagerButton;
+let popupElement;
+let popupCloseButton;
+let popupSaveButton;
+let clipboardListElement;
+
 // Initialize extension settings
 function loadSettings() {
   // Create settings if they don't exist
-  if (!extension_settings[extensionName]) {
-    extension_settings[extensionName] = {};
-  }
-  
+  extension_settings[extensionName] = extension_settings[extensionName] || {};
   if (Object.keys(extension_settings[extensionName]).length === 0) {
     Object.assign(extension_settings[extensionName], defaultSettings);
   }
   
-  saveSettingsDebounced();
+  // Initialize UI with current settings
+  updateClipboardList();
 }
 
 // Add clipboard content to the saved list
@@ -44,8 +50,9 @@ function saveToClipboardList(text) {
     settings.savedClipboards = settings.savedClipboards.slice(0, settings.maxItems);
   }
   
-  // Save settings
+  // Save settings and update UI
   saveSettingsDebounced();
+  updateClipboardList();
 }
 
 // Remove an item from the clipboard list
@@ -53,28 +60,109 @@ function removeFromClipboardList(index) {
   const settings = extension_settings[extensionName];
   settings.savedClipboards.splice(index, 1);
   saveSettingsDebounced();
+  updateClipboardList();
 }
 
-// Helper function to escape HTML to prevent XSS
-function escapeHtml(unsafe) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+// Update the display of saved clipboard items
+function updateClipboardList() {
+  if (!clipboardListElement) return; // Exit if element doesn't exist yet
+  
+  // Clear the current list
+  clipboardListElement.innerHTML = '';
+  
+  const settings = extension_settings[extensionName];
+  
+  if (!settings.savedClipboards || settings.savedClipboards.length === 0) {
+    const emptyMessage = document.createElement('div');
+    emptyMessage.className = 'clipboard-empty-message';
+    emptyMessage.textContent = '没有保存的内容';
+    clipboardListElement.appendChild(emptyMessage);
+    return;
+  }
+  
+  // Create list items
+  settings.savedClipboards.forEach((text, index) => {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'clipboard-item';
+    
+    // Text display
+    const textElement = document.createElement('div');
+    textElement.className = 'clipboard-item-text';
+    textElement.textContent = text.length > 50 ? text.substring(0, 50) + '...' : text;
+    
+    // Actions container
+    const actionsElement = document.createElement('div');
+    actionsElement.className = 'clipboard-item-actions';
+    
+    // Copy button
+    const copyButton = document.createElement('button');
+    copyButton.className = 'clipboard-copy-btn menu_button';
+    copyButton.dataset.index = index;
+    copyButton.innerHTML = '<i class="fa-solid fa-copy"></i>';
+    copyButton.addEventListener('click', function() {
+      copyToClipboard(settings.savedClipboards[index]);
+    });
+    
+    // Delete button
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'clipboard-delete-btn menu_button';
+    deleteButton.dataset.index = index;
+    deleteButton.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    deleteButton.addEventListener('click', function() {
+      removeFromClipboardList(index);
+    });
+    
+    // Assemble
+    actionsElement.appendChild(copyButton);
+    actionsElement.appendChild(deleteButton);
+    itemElement.appendChild(textElement);
+    itemElement.appendChild(actionsElement);
+    
+    clipboardListElement.appendChild(itemElement);
+  });
 }
 
 // Copy text to clipboard
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text)
     .then(() => {
-      toastr.success("已复制到剪贴板！");
+      showToast('success', "内容已复制到剪贴板!");
     })
     .catch(err => {
-      console.error('复制文本失败: ', err);
-      toastr.error("复制到剪贴板失败");
+      console.error('Failed to copy text: ', err);
+      showToast('error', "复制到剪贴板失败");
     });
+}
+
+// Simple toast function to use instead of toastr
+function showToast(type, message) {
+  // Check if toastr is available from SillyTavern
+  if (typeof toastr !== 'undefined') {
+    if (type === 'success') toastr.success(message);
+    else if (type === 'error') toastr.error(message);
+    else toastr.info(message);
+    return;
+  }
+  
+  // Fallback toast implementation
+  const toast = document.createElement('div');
+  toast.className = 'clipboard-toast clipboard-toast-' + type;
+  toast.textContent = message;
+  
+  document.body.appendChild(toast);
+  
+  // Show toast
+  setTimeout(() => {
+    toast.classList.add('show');
+  }, 10);
+  
+  // Hide and remove toast
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 300);
+  }, 3000);
 }
 
 // Read from clipboard
@@ -83,8 +171,8 @@ async function readFromClipboard() {
     const text = await navigator.clipboard.readText();
     return text;
   } catch (err) {
-    console.error('读取剪贴板内容失败: ', err);
-    toastr.error("无法访问剪贴板。请检查浏览器权限。");
+    console.error('Failed to read clipboard contents: ', err);
+    showToast('error', "无法访问剪贴板。请检查浏览器权限。");
     return null;
   }
 }
@@ -94,122 +182,52 @@ async function onQuickCopyButtonClick() {
   const clipboardText = await readFromClipboard();
   if (clipboardText) {
     saveToClipboardList(clipboardText);
-    toastr.success("剪贴板内容已保存！");
+    showToast('success', "剪贴板内容已保存!");
   }
 }
 
-// Generate the HTML for the clipboard list
-function generateClipboardListHTML() {
-  const settings = extension_settings[extensionName];
-  let html = '';
+// Handle opening the clipboard manager popup
+function openClipboardManagerPopup() {
+  if (!popupElement) return;
   
-  if (settings.savedClipboards.length === 0) {
-    html = '<div class="clipboard-empty-message">没有保存的项目</div>';
-  } else {
-    settings.savedClipboards.forEach((text, index) => {
-      html += `
-        <div class="clipboard-item">
-          <div class="clipboard-item-text">${escapeHtml(text.substring(0, 50))}${text.length > 50 ? '...' : ''}</div>
-          <div class="clipboard-item-actions">
-            <button class="clipboard-copy-btn menu_button" data-index="${index}">
-              <i class="fa-solid fa-copy"></i>
-            </button>
-            <button class="clipboard-delete-btn menu_button" data-index="${index}">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        </div>
-      `;
-    });
+  // Update clipboard list before showing popup
+  updateClipboardList();
+  
+  // Show popup
+  popupElement.classList.add('show');
+  console.log('Popup opened');
+}
+
+// Handle closing the clipboard manager popup
+function closeClipboardManagerPopup() {
+  if (!popupElement) return;
+  popupElement.classList.remove('show');
+}
+
+// Handle the open popup button click
+function onOpenPopupButtonClick() {
+  console.log('Open popup button clicked');
+  openClipboardManagerPopup();
+}
+
+// Handle the save from clipboard button in popup
+async function onSaveClipboardInPopupClick() {
+  const clipboardText = await readFromClipboard();
+  if (clipboardText) {
+    saveToClipboardList(clipboardText);
+    showToast('success', "剪贴板内容已保存!");
+  }
+}
+
+// Create and append settings UI
+function createSettingsUI() {
+  const extensionsSettings = document.getElementById('extensions_settings2');
+  if (!extensionsSettings) {
+    console.error('Extensions settings container not found');
+    return false;
   }
   
-  return html;
-}
-
-// Show the clipboard manager popup
-function showClipboardPopup() {
-  console.log("显示剪贴板弹窗");
-  
-  // Remove any existing popup
-  $("#clipboard_manager_popup").remove();
-  
-  // Create the popup HTML
-  const popupHtml = `
-    <div id="clipboard_manager_popup" class="clipboard-popup">
-      <div class="clipboard-popup-content">
-        <div class="clipboard-popup-header">
-          <h3>剪贴板管理器</h3>
-          <button id="clipboard_popup_close" class="clipboard-popup-close">×</button>
-        </div>
-        <div class="clipboard-popup-body">
-          <div class="clipboard-actions">
-            <button id="clipboard_popup_save" class="menu_button">保存当前剪贴板内容</button>
-          </div>
-          <div class="clipboard-saved-items">
-            <h4>保存的内容</h4>
-            <div id="clipboard_saved_list" class="clipboard-list">
-              ${generateClipboardListHTML()}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  // Append to body
-  $("body").append(popupHtml);
-  
-  // Add event listeners
-  $("#clipboard_popup_close").off().on("click", function() {
-    $("#clipboard_manager_popup").removeClass("show");
-    setTimeout(() => {
-      $("#clipboard_manager_popup").remove();
-    }, 300);
-  });
-  
-  $("#clipboard_popup_save").off().on("click", async function() {
-    const clipboardText = await readFromClipboard();
-    if (clipboardText) {
-      saveToClipboardList(clipboardText);
-      // Refresh the list
-      $("#clipboard_saved_list").html(generateClipboardListHTML());
-      // Re-attach event handlers
-      attachClipboardItemHandlers();
-      toastr.success("剪贴板内容已保存！");
-    }
-  });
-  
-  // Add handlers to clipboard items
-  attachClipboardItemHandlers();
-  
-  // Show the popup
-  setTimeout(() => {
-    $("#clipboard_manager_popup").addClass("show");
-  }, 10);
-}
-
-// Attach event handlers to clipboard items
-function attachClipboardItemHandlers() {
-  $(".clipboard-copy-btn").off().on("click", function() {
-    const index = $(this).data("index");
-    const text = extension_settings[extensionName].savedClipboards[index];
-    copyToClipboard(text);
-  });
-  
-  $(".clipboard-delete-btn").off().on("click", function() {
-    const index = $(this).data("index");
-    removeFromClipboardList(index);
-    // Refresh the list
-    $("#clipboard_saved_list").html(generateClipboardListHTML());
-    // Re-attach event handlers
-    attachClipboardItemHandlers();
-  });
-}
-
-// Initialize the extension
-jQuery(async () => {
-  // Add settings to the extensions panel
-  const settingsHtml = `
+  const settingsHTML = `
     <div class="clipboard-manager-settings">
       <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
@@ -230,39 +248,106 @@ jQuery(async () => {
     </div>
   `;
   
-  // Append settings HTML
-  $("#extensions_settings2").append(settingsHtml);
+  // Insert settings HTML
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = settingsHTML;
+  extensionsSettings.appendChild(tempContainer.firstElementChild);
   
-  // Load settings
-  loadSettings();
+  // Get button references
+  quickSaveButton = document.getElementById('clipboard_quick_save');
+  openManagerButton = document.getElementById('clipboard_open_manager');
   
-  // Clear any existing bindings
-  $("#clipboard_quick_save, #clipboard_open_manager").off();
+  // Add event listeners
+  if (quickSaveButton) {
+    quickSaveButton.addEventListener('click', onQuickCopyButtonClick);
+  }
   
-  // Add event listeners with explicit debug logging
-  $("#clipboard_quick_save").on("click", function() {
-    console.log("'保存剪贴板内容'按钮被点击");
-    onQuickCopyButtonClick();
-  });
+  if (openManagerButton) {
+    openManagerButton.addEventListener('click', onOpenPopupButtonClick);
+  }
   
-  $("#clipboard_open_manager").on("click", function() {
-    console.log("'打开剪贴板管理器'按钮被点击");
-    showClipboardPopup();
-  });
+  return true;
+}
+
+// Create and append popup UI
+function createPopupUI() {
+  // Create popup HTML structure
+  const popupHTML = `
+    <div id="clipboard_manager_popup" class="clipboard-popup">
+      <div class="clipboard-popup-content">
+        <div class="clipboard-popup-header">
+          <h3>剪贴板管理器</h3>
+          <button id="clipboard_popup_close" class="clipboard-popup-close">×</button>
+        </div>
+        <div class="clipboard-popup-body">
+          <div class="clipboard-actions">
+            <button id="clipboard_popup_save" class="menu_button">保存当前剪贴板内容</button>
+          </div>
+          <div class="clipboard-saved-items">
+            <h4>保存的内容</h4>
+            <div id="clipboard_saved_list" class="clipboard-list">
+              <!-- Saved clipboard items will be inserted here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
   
-  // Close popup when clicking outside (document event)
-  $(document).off('click.clipboardManager').on('click.clipboardManager', function(event) {
-    const $popup = $("#clipboard_manager_popup");
-    if ($popup.length && $popup.hasClass("show")) {
-      if (!$(event.target).closest(".clipboard-popup-content").length && 
-          !$(event.target).closest("#clipboard_open_manager").length) {
-        $popup.removeClass("show");
-        setTimeout(() => {
-          $popup.remove();
-        }, 300);
-      }
+  // Insert popup HTML
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = popupHTML;
+  document.body.appendChild(tempContainer.firstElementChild);
+  
+  // Get element references
+  popupElement = document.getElementById('clipboard_manager_popup');
+  popupCloseButton = document.getElementById('clipboard_popup_close');
+  popupSaveButton = document.getElementById('clipboard_popup_save');
+  clipboardListElement = document.getElementById('clipboard_saved_list');
+  
+  // Add event listeners
+  if (popupCloseButton) {
+    popupCloseButton.addEventListener('click', closeClipboardManagerPopup);
+  }
+  
+  if (popupSaveButton) {
+    popupSaveButton.addEventListener('click', onSaveClipboardInPopupClick);
+  }
+  
+  // Add click-outside-to-close functionality
+  document.addEventListener('click', function(event) {
+    if (popupElement && 
+        popupElement.classList.contains('show') && 
+        !popupElement.contains(event.target) && 
+        event.target !== openManagerButton) {
+      closeClipboardManagerPopup();
     }
   });
   
-  console.log(`${extensionName} 扩展已加载`);
-});
+  return popupElement && clipboardListElement;
+}
+
+// Initialize the extension
+function initializeExtension() {
+  console.log(`${extensionName} extension initializing...`);
+  
+  // Create UI elements
+  const settingsCreated = createSettingsUI();
+  const popupCreated = createPopupUI();
+  
+  if (settingsCreated && popupCreated) {
+    // Load settings
+    loadSettings();
+    console.log(`${extensionName} extension loaded successfully`);
+  } else {
+    console.error(`${extensionName} extension failed to initialize UI`);
+  }
+}
+
+// Wait for DOM to be fully loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeExtension);
+} else {
+  // DOM already loaded, initialize right away
+  initializeExtension();
+}
