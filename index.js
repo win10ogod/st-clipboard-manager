@@ -1,246 +1,247 @@
 // Clipboard Manager Extension for SillyTavern
-import { extension_settings, getContext, loadExtensionSettings } from "../../../extensions.js";
+import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 
-// Extension configuration
-const extensionName = "st-clipboard-manager";
+// 設置擴展基本信息
+const extensionName = "clipboard-manager";
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+
+// 默認設置
 const defaultSettings = {
-  savedClipboards: [],  // Array to store saved clipboard items
-  maxItems: 10          // Maximum number of items to store
+  clipboardItems: [], // 存儲剪貼板項目
+  maxItems: 20, // 最多儲存項目數
 };
 
-// DOM Elements (will be initialized when DOM is ready)
-let quickSaveButton;
-let openManagerButton;
-let popupElement;
-let popupCloseButton;
-let popupSaveButton;
-let clipboardListElement;
-
-// Initialize extension settings
-function loadSettings() {
-  // Create settings if they don't exist
+// 加載設置
+async function loadSettings() {
+  // 創建設置（如果不存在）
   extension_settings[extensionName] = extension_settings[extensionName] || {};
   if (Object.keys(extension_settings[extensionName]).length === 0) {
     Object.assign(extension_settings[extensionName], defaultSettings);
   }
-  
-  // Initialize UI with current settings
-  updateClipboardList();
 }
 
-// Add clipboard content to the saved list
-function saveToClipboardList(text) {
-  if (!text) return;
-  
-  const settings = extension_settings[extensionName];
-  
-  // Check if this item already exists to avoid duplicates
-  const existingIndex = settings.savedClipboards.findIndex(item => item === text);
-  if (existingIndex >= 0) {
-    // Move to the top if already exists
-    settings.savedClipboards.splice(existingIndex, 1);
+// 保存剪貼板內容到列表
+async function saveToClipboardList() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || text.trim() === '') {
+      toastr.warning('剪貼板為空或無法訪問。', '剪貼板管理器');
+      return;
+    }
+
+    // 檢查是否已存在相同內容
+    if (extension_settings[extensionName].clipboardItems.includes(text)) {
+      toastr.info('此內容已存在於列表中。', '剪貼板管理器');
+      return;
+    }
+
+    // 添加到列表開頭
+    extension_settings[extensionName].clipboardItems.unshift(text);
+    
+    // 限制列表長度
+    if (extension_settings[extensionName].clipboardItems.length > extension_settings[extensionName].maxItems) {
+      extension_settings[extensionName].clipboardItems.pop();
+    }
+    
+    saveSettingsDebounced();
+    toastr.success('已保存到剪貼板列表！', '剪貼板管理器');
+    updateClipboardListDisplay();
+  } catch (error) {
+    console.error("無法訪問剪貼板:", error);
+    toastr.error('無法訪問剪貼板。請確保您已授予權限。', '剪貼板管理器');
   }
-  
-  // Add to the beginning of the array
-  settings.savedClipboards.unshift(text);
-  
-  // Trim to max items
-  if (settings.savedClipboards.length > settings.maxItems) {
-    settings.savedClipboards = settings.savedClipboards.slice(0, settings.maxItems);
+}
+
+// 複製項目到剪貼板
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toastr.success('已複製到剪貼板！', '剪貼板管理器');
+  } catch (error) {
+    console.error("無法寫入剪貼板:", error);
+    toastr.error('無法複製到剪貼板。', '剪貼板管理器');
   }
-  
-  // Save settings and update UI
-  saveSettingsDebounced();
-  updateClipboardList();
 }
 
-// Remove an item from the clipboard list
-function removeFromClipboardList(index) {
-  const settings = extension_settings[extensionName];
-  settings.savedClipboards.splice(index, 1);
+// 從列表中刪除項目
+function removeFromList(index) {
+  extension_settings[extensionName].clipboardItems.splice(index, 1);
   saveSettingsDebounced();
-  updateClipboardList();
+  updateClipboardListDisplay();
+  toastr.info('已從列表中移除', '剪貼板管理器');
 }
 
-// Update the display of saved clipboard items
-function updateClipboardList() {
-  if (!clipboardListElement) return; // Exit if element doesn't exist yet
+// 清空列表
+function clearList() {
+  extension_settings[extensionName].clipboardItems = [];
+  saveSettingsDebounced();
+  updateClipboardListDisplay();
+  toastr.info('已清空列表', '剪貼板管理器');
+}
+
+// 更新剪貼板列表顯示
+function updateClipboardListDisplay() {
+  const clipboardList = $('#clipboard_list');
+  clipboardList.empty();
   
-  // Clear the current list
-  clipboardListElement.innerHTML = '';
-  
-  const settings = extension_settings[extensionName];
-  
-  if (!settings.savedClipboards || settings.savedClipboards.length === 0) {
-    const emptyMessage = document.createElement('div');
-    emptyMessage.className = 'clipboard-empty-message';
-    emptyMessage.textContent = '没有保存的内容';
-    clipboardListElement.appendChild(emptyMessage);
+  if (extension_settings[extensionName].clipboardItems.length === 0) {
+    clipboardList.append('<li class="clipboard-item-empty">列表為空</li>');
     return;
   }
   
-  // Create list items
-  settings.savedClipboards.forEach((text, index) => {
-    const itemElement = document.createElement('div');
-    itemElement.className = 'clipboard-item';
+  extension_settings[extensionName].clipboardItems.forEach((item, index) => {
+    // 創建項目元素
+    const itemElement = $('<li class="clipboard-item"></li>');
     
-    // Text display
-    const textElement = document.createElement('div');
-    textElement.className = 'clipboard-item-text';
-    textElement.textContent = text.length > 50 ? text.substring(0, 50) + '...' : text;
+    // 創建內容預覽（限制長度）
+    const preview = item.length > 50 ? `${item.substring(0, 50)}...` : item;
+    const contentElement = $('<div class="clipboard-item-content"></div>').text(preview);
     
-    // Actions container
-    const actionsElement = document.createElement('div');
-    actionsElement.className = 'clipboard-item-actions';
+    // 創建操作按鈕
+    const actionsElement = $('<div class="clipboard-item-actions"></div>');
+    const copyButton = $('<button class="clipboard-action-button"><i class="fa-solid fa-copy"></i></button>')
+      .on('click', () => copyToClipboard(item));
+    const deleteButton = $('<button class="clipboard-action-button"><i class="fa-solid fa-trash"></i></button>')
+      .on('click', () => removeFromList(index));
     
-    // Copy button
-    const copyButton = document.createElement('button');
-    copyButton.className = 'clipboard-copy-btn menu_button';
-    copyButton.dataset.index = index;
-    copyButton.innerHTML = '<i class="fa-solid fa-copy"></i>';
-    copyButton.addEventListener('click', function() {
-      copyToClipboard(settings.savedClipboards[index]);
+    // 組合元素
+    actionsElement.append(copyButton, deleteButton);
+    itemElement.append(contentElement, actionsElement);
+    
+    // 點擊項目顯示完整內容
+    itemElement.on('click', function(e) {
+      if (!$(e.target).closest('button').length) {
+        showFullContentModal(item);
+      }
     });
     
-    // Delete button
-    const deleteButton = document.createElement('button');
-    deleteButton.className = 'clipboard-delete-btn menu_button';
-    deleteButton.dataset.index = index;
-    deleteButton.innerHTML = '<i class="fa-solid fa-trash"></i>';
-    deleteButton.addEventListener('click', function() {
-      removeFromClipboardList(index);
-    });
-    
-    // Assemble
-    actionsElement.appendChild(copyButton);
-    actionsElement.appendChild(deleteButton);
-    itemElement.appendChild(textElement);
-    itemElement.appendChild(actionsElement);
-    
-    clipboardListElement.appendChild(itemElement);
+    clipboardList.append(itemElement);
   });
 }
 
-// Copy text to clipboard
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text)
-    .then(() => {
-      showToast('success', "内容已复制到剪贴板!");
-    })
-    .catch(err => {
-      console.error('Failed to copy text: ', err);
-      showToast('error', "复制到剪贴板失败");
+// 顯示完整內容模態框
+function showFullContentModal(content) {
+  // 創建或獲取模態框
+  let modal = $('#clipboard_full_content_modal');
+  if (modal.length === 0) {
+    modal = $(`
+      <div id="clipboard_full_content_modal" class="clipboard-modal">
+        <div class="clipboard-modal-content">
+          <div class="clipboard-modal-header">
+            <span class="clipboard-modal-title">剪貼板內容</span>
+            <span class="clipboard-modal-close">&times;</span>
+          </div>
+          <div class="clipboard-modal-body">
+            <pre id="clipboard_full_content"></pre>
+          </div>
+          <div class="clipboard-modal-footer">
+            <button id="clipboard_modal_copy_btn" class="clipboard-modal-button">複製</button>
+          </div>
+        </div>
+      </div>
+    `);
+    $('body').append(modal);
+    
+    // 關閉模態框
+    modal.find('.clipboard-modal-close').on('click', function() {
+      modal.hide();
     });
-}
-
-// Simple toast function to use instead of toastr
-function showToast(type, message) {
-  // Check if toastr is available from SillyTavern
-  if (typeof toastr !== 'undefined') {
-    if (type === 'success') toastr.success(message);
-    else if (type === 'error') toastr.error(message);
-    else toastr.info(message);
-    return;
+    
+    // 點擊模態框外部關閉
+    $(window).on('click', function(e) {
+      if ($(e.target).is(modal)) {
+        modal.hide();
+      }
+    });
   }
   
-  // Fallback toast implementation
-  const toast = document.createElement('div');
-  toast.className = 'clipboard-toast clipboard-toast-' + type;
-  toast.textContent = message;
+  // 更新模態框內容
+  $('#clipboard_full_content').text(content);
   
-  document.body.appendChild(toast);
+  // 設置複製按鈕功能
+  $('#clipboard_modal_copy_btn').off('click').on('click', function() {
+    copyToClipboard(content);
+  });
   
-  // Show toast
-  setTimeout(() => {
-    toast.classList.add('show');
-  }, 10);
-  
-  // Hide and remove toast
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => {
-      document.body.removeChild(toast);
-    }, 300);
-  }, 3000);
+  // 顯示模態框
+  modal.show();
 }
 
-// Read from clipboard
-async function readFromClipboard() {
-  try {
-    const text = await navigator.clipboard.readText();
-    return text;
-  } catch (err) {
-    console.error('Failed to read clipboard contents: ', err);
-    showToast('error', "无法访问剪贴板。请检查浏览器权限。");
-    return null;
-  }
-}
-
-// Handle the quick copy button click
-async function onQuickCopyButtonClick() {
-  const clipboardText = await readFromClipboard();
-  if (clipboardText) {
-    saveToClipboardList(clipboardText);
-    showToast('success', "剪贴板内容已保存!");
-  }
-}
-
-// Handle opening the clipboard manager popup
-function openClipboardManagerPopup() {
-  if (!popupElement) return;
-  
-  // Update clipboard list before showing popup
-  updateClipboardList();
-  
-  // Show popup
-  popupElement.classList.add('show');
-  console.log('Popup opened');
-}
-
-// Handle closing the clipboard manager popup
-function closeClipboardManagerPopup() {
-  if (!popupElement) return;
-  popupElement.classList.remove('show');
-}
-
-// Handle the open popup button click
-function onOpenPopupButtonClick() {
-  console.log('Open popup button clicked');
-  openClipboardManagerPopup();
-}
-
-// Handle the save from clipboard button in popup
-async function onSaveClipboardInPopupClick() {
-  const clipboardText = await readFromClipboard();
-  if (clipboardText) {
-    saveToClipboardList(clipboardText);
-    showToast('success', "剪贴板内容已保存!");
-  }
-}
-
-// Create and append settings UI
-function createSettingsUI() {
-  const extensionsSettings = document.getElementById('extensions_settings2');
-  if (!extensionsSettings) {
-    console.error('Extensions settings container not found');
-    return false;
+// 顯示剪貼板管理器彈窗
+function showClipboardManager() {
+  // 創建或獲取彈窗
+  let clipboardManager = $('#clipboard_manager_modal');
+  if (clipboardManager.length === 0) {
+    clipboardManager = $(`
+      <div id="clipboard_manager_modal" class="clipboard-modal">
+        <div class="clipboard-modal-content clipboard-manager-content">
+          <div class="clipboard-modal-header">
+            <span class="clipboard-modal-title">剪貼板管理器</span>
+            <span class="clipboard-modal-close">&times;</span>
+          </div>
+          <div class="clipboard-modal-body">
+            <div class="clipboard-actions">
+              <button id="clipboard_save_btn" class="clipboard-modal-button">保存當前剪貼板內容</button>
+              <button id="clipboard_clear_btn" class="clipboard-modal-button clipboard-danger-button">清空列表</button>
+            </div>
+            <div class="clipboard-list-container">
+              <h4>已保存項目 (點擊查看完整內容)</h4>
+              <ul id="clipboard_list" class="clipboard-list"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+    $('body').append(clipboardManager);
+    
+    // 關閉彈窗
+    clipboardManager.find('.clipboard-modal-close').on('click', function() {
+      clipboardManager.hide();
+    });
+    
+    // 點擊彈窗外部關閉
+    $(window).on('click', function(e) {
+      if ($(e.target).is(clipboardManager)) {
+        clipboardManager.hide();
+      }
+    });
+    
+    // 保存當前剪貼板內容
+    $('#clipboard_save_btn').on('click', saveToClipboardList);
+    
+    // 清空列表
+    $('#clipboard_clear_btn').on('click', function() {
+      if (confirm('確定要清空列表嗎？')) {
+        clearList();
+      }
+    });
   }
   
-  const settingsHTML = `
+  // 更新列表顯示
+  updateClipboardListDisplay();
+  
+  // 顯示彈窗
+  clipboardManager.show();
+}
+
+// 當擴展加載時執行
+jQuery(async () => {
+  // 加載HTML
+  const settingsHtml = `
     <div class="clipboard-manager-settings">
       <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-          <b>剪贴板管理器</b>
+          <b>剪貼板管理器</b>
           <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
           <div class="clipboard-manager_block flex-container">
-            <input id="clipboard_quick_save" class="menu_button" type="button" value="保存剪贴板内容" />
-            <input id="clipboard_open_manager" class="menu_button" type="button" value="打开剪贴板管理器" />
+            <input id="clipboard_manager_btn" class="menu_button" type="submit" value="打開剪貼板管理器" />
           </div>
-          <div class="clipboard-manager_info">
-            <p>使用此插件可以快速保存和检索剪贴板内容。</p>
+          <div class="clipboard-manager_block flex-container">
+            <label for="clipboard_max_items">最大保存數量：</label>
+            <input id="clipboard_max_items" type="number" min="1" max="100" />
           </div>
           <hr class="sysHR" />
         </div>
@@ -248,106 +249,22 @@ function createSettingsUI() {
     </div>
   `;
   
-  // Insert settings HTML
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = settingsHTML;
-  extensionsSettings.appendChild(tempContainer.firstElementChild);
+  // 添加到設置面板
+  $("#extensions_settings2").append(settingsHtml);
   
-  // Get button references
-  quickSaveButton = document.getElementById('clipboard_quick_save');
-  openManagerButton = document.getElementById('clipboard_open_manager');
-  
-  // Add event listeners
-  if (quickSaveButton) {
-    quickSaveButton.addEventListener('click', onQuickCopyButtonClick);
-  }
-  
-  if (openManagerButton) {
-    openManagerButton.addEventListener('click', onOpenPopupButtonClick);
-  }
-  
-  return true;
-}
-
-// Create and append popup UI
-function createPopupUI() {
-  // Create popup HTML structure
-  const popupHTML = `
-    <div id="clipboard_manager_popup" class="clipboard-popup">
-      <div class="clipboard-popup-content">
-        <div class="clipboard-popup-header">
-          <h3>剪贴板管理器</h3>
-          <button id="clipboard_popup_close" class="clipboard-popup-close">×</button>
-        </div>
-        <div class="clipboard-popup-body">
-          <div class="clipboard-actions">
-            <button id="clipboard_popup_save" class="menu_button">保存当前剪贴板内容</button>
-          </div>
-          <div class="clipboard-saved-items">
-            <h4>保存的内容</h4>
-            <div id="clipboard_saved_list" class="clipboard-list">
-              <!-- Saved clipboard items will be inserted here -->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  // Insert popup HTML
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = popupHTML;
-  document.body.appendChild(tempContainer.firstElementChild);
-  
-  // Get element references
-  popupElement = document.getElementById('clipboard_manager_popup');
-  popupCloseButton = document.getElementById('clipboard_popup_close');
-  popupSaveButton = document.getElementById('clipboard_popup_save');
-  clipboardListElement = document.getElementById('clipboard_saved_list');
-  
-  // Add event listeners
-  if (popupCloseButton) {
-    popupCloseButton.addEventListener('click', closeClipboardManagerPopup);
-  }
-  
-  if (popupSaveButton) {
-    popupSaveButton.addEventListener('click', onSaveClipboardInPopupClick);
-  }
-  
-  // Add click-outside-to-close functionality
-  document.addEventListener('click', function(event) {
-    if (popupElement && 
-        popupElement.classList.contains('show') && 
-        !popupElement.contains(event.target) && 
-        event.target !== openManagerButton) {
-      closeClipboardManagerPopup();
+  // 註冊事件監聽器
+  $("#clipboard_manager_btn").on("click", showClipboardManager);
+  $("#clipboard_max_items").on("input", function() {
+    const value = Number($(this).val());
+    if (value >= 1 && value <= 100) {
+      extension_settings[extensionName].maxItems = value;
+      saveSettingsDebounced();
     }
   });
   
-  return popupElement && clipboardListElement;
-}
-
-// Initialize the extension
-function initializeExtension() {
-  console.log(`${extensionName} extension initializing...`);
+  // 加載設置
+  await loadSettings();
   
-  // Create UI elements
-  const settingsCreated = createSettingsUI();
-  const popupCreated = createPopupUI();
-  
-  if (settingsCreated && popupCreated) {
-    // Load settings
-    loadSettings();
-    console.log(`${extensionName} extension loaded successfully`);
-  } else {
-    console.error(`${extensionName} extension failed to initialize UI`);
-  }
-}
-
-// Wait for DOM to be fully loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeExtension);
-} else {
-  // DOM already loaded, initialize right away
-  initializeExtension();
-}
+  // 更新UI以匹配設置
+  $("#clipboard_max_items").val(extension_settings[extensionName].maxItems);
+});
