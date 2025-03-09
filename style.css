@@ -28,18 +28,19 @@
 }
 
 .clipboard-popup.show {
-    display: flex;
+    display: flex !important; /* Force display when show class is applied */
 }
 
 .clipboard-popup-content {
     width: 90%;
     max-width: 600px;
-    background-color: var(--SmartThemeBodyColor);
-    border: 1px solid var(--SmartThemeBorderColor);
+    background-color: var(--SmartThemeBodyColor, #36393f);
+    border: 1px solid var(--SmartThemeBorderColor, #202225);
     border-radius: 10px;
     padding: 20px;
     max-height: 80vh;
     overflow-y: auto;
+    color: var(--SmartThemeTextColor, #dcddde);
 }
 
 .clipboard-popup-header {
@@ -47,7 +48,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 15px;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #202225);
     padding-bottom: 10px;
 }
 
@@ -60,7 +61,7 @@
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: var(--SmartThemeTextColor);
+    color: var(--SmartThemeTextColor, #dcddde);
 }
 
 .clipboard-actions {
@@ -88,7 +89,7 @@
     padding: 10px;
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 5px;
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid var(--SmartThemeBorderColor, #202225);
 }
 
 .clipboard-item-text {
